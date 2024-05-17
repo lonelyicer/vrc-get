@@ -9,11 +9,10 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use futures::prelude::*;
-use indexmap::IndexMap;
 use log::{error, info, warn};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
-use specta::{specta, DataType, DefOpts, ExportError, Type};
+use specta::specta;
 use tauri::api::dialog::blocking::FileDialogBuilder;
 use tauri::async_runtime::Mutex;
 use tauri::{
@@ -23,7 +22,7 @@ use tokio::fs::read_dir;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
-use async_command::{async_command, immediate, AsyncCallResult, AsyncCommandContext, With};
+use async_command::{async_command, AsyncCallResult, AsyncCommandContext, With};
 use vrc_get_vpm::environment::UserProject;
 use vrc_get_vpm::io::{DefaultEnvironmentIo, DefaultProjectIo, DirEntry, EnvironmentIo, IoTrait};
 use vrc_get_vpm::repository::RemoteRepository;
@@ -34,11 +33,12 @@ use vrc_get_vpm::unity_project::{AddPackageOperation, PendingProjectChanges};
 use vrc_get_vpm::version::Version;
 use vrc_get_vpm::{
     unity_hub, EnvironmentIoHolder, PackageCollection, PackageInfo, PackageManifest, ProjectType,
-    VersionSelector, VRCHAT_RECOMMENDED_2022_UNITY,
+    VersionSelector, VRCHAT_RECOMMENDED_2022_UNITY, VRCHAT_RECOMMENDED_2022_UNITY_HUB_LINK,
 };
 
 use crate::config::GuiConfigHolder;
 use crate::logging::LogEntry;
+use crate::specta::IndexMapV2;
 
 mod async_command;
 
@@ -60,6 +60,7 @@ pub(crate) fn handlers() -> impl Fn(Invoke) + Send + Sync + 'static {
         environment_hide_repository,
         environment_show_repository,
         environment_set_hide_local_user_packages,
+        environment_unity_versions,
         environment_get_settings,
         environment_pick_unity_hub,
         environment_pick_unity,
@@ -80,15 +81,17 @@ pub(crate) fn handlers() -> impl Fn(Invoke) + Send + Sync + 'static {
         project_resolve,
         project_remove_packages,
         project_apply_pending_changes,
-        project_before_migrate_project_to_2022,
         project_migrate_project_to_2022,
-        project_finalize_migration_with_unity_2022,
+        project_call_unity_for_migration,
         project_migrate_project_to_vpm,
         project_open_unity,
         project_create_backup,
         util_open,
         util_get_log_entries,
         util_get_version,
+        crate::deep_link_support::deep_link_has_add_repository,
+        crate::deep_link_support::deep_link_take_add_repository,
+        crate::deep_link_support::deep_link_install_vcc,
     ]
 }
 
@@ -112,6 +115,7 @@ pub(crate) fn export_ts() {
             environment_hide_repository,
             environment_show_repository,
             environment_set_hide_local_user_packages,
+            environment_unity_versions,
             environment_get_settings,
             environment_pick_unity_hub,
             environment_pick_unity,
@@ -132,15 +136,17 @@ pub(crate) fn export_ts() {
             project_resolve,
             project_remove_packages,
             project_apply_pending_changes,
-            project_before_migrate_project_to_2022,
             project_migrate_project_to_2022,
-            project_finalize_migration_with_unity_2022,
+            project_call_unity_for_migration,
             project_migrate_project_to_vpm,
             project_open_unity,
             project_create_backup,
             util_open,
             util_get_log_entries,
             util_get_version,
+            crate::deep_link_support::deep_link_has_add_repository,
+            crate::deep_link_support::deep_link_take_add_repository,
+            crate::deep_link_support::deep_link_install_vcc,
         ]
         .unwrap(),
         specta::ts::ExportConfiguration::new().bigint(specta::ts::BigIntExportBehavior::Number),
@@ -1117,6 +1123,39 @@ async fn environment_set_hide_local_user_packages(
 }
 
 #[derive(Serialize, specta::Type)]
+struct TauriUnityVersions {
+    unity_paths: Vec<(String, String, bool)>,
+    recommended_version: String,
+    install_recommended_version_link: String,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn environment_unity_versions(
+    state: State<'_, Mutex<EnvironmentState>>,
+) -> Result<TauriUnityVersions, RustError> {
+    with_environment!(&state, |environment| {
+        environment.find_unity_hub().await.ok();
+
+        Ok(TauriUnityVersions {
+            unity_paths: environment
+                .get_unity_installations()?
+                .iter()
+                .filter_map(|unity| {
+                    Some((
+                        unity.path().to_string(),
+                        unity.version()?.to_string(),
+                        unity.loaded_from_hub(),
+                    ))
+                })
+                .collect(),
+            recommended_version: VRCHAT_RECOMMENDED_2022_UNITY.to_string(),
+            install_recommended_version_link: VRCHAT_RECOMMENDED_2022_UNITY_HUB_LINK.to_string(),
+        })
+    })
+}
+
+#[derive(Serialize, specta::Type)]
 struct TauriEnvironmentSettings {
     default_project_path: String,
     project_backup_path: String,
@@ -1134,7 +1173,7 @@ async fn environment_get_settings(
     with_environment!(&state, |environment, config| {
         environment.find_unity_hub().await.ok();
 
-        Ok(TauriEnvironmentSettings {
+        let settings = TauriEnvironmentSettings {
             default_project_path: environment.default_project_path().to_string(),
             project_backup_path: environment.project_backup_path().to_string(),
             unity_hub: environment.unity_hub_path().to_string(),
@@ -1151,7 +1190,9 @@ async fn environment_get_settings(
                 .collect(),
             show_prerelease_packages: environment.show_prerelease_packages(),
             backup_format: config.backup_format.to_string(),
-        })
+        };
+        environment.disconnect_litedb();
+        Ok(settings)
     })
 }
 
@@ -1433,50 +1474,6 @@ enum TauriDownloadRepository {
 
 // workaround IndexMap v2 is not implemented in specta
 
-#[derive(serde::Deserialize)]
-#[serde(transparent)]
-struct IndexMapV2<K: std::hash::Hash + Eq, V>(IndexMap<K, V>);
-
-impl Type for IndexMapV2<Box<str>, Box<str>> {
-    fn inline(opts: DefOpts, generics: &[DataType]) -> Result<DataType, ExportError> {
-        Ok(DataType::Record(Box::new((
-            String::inline(
-                DefOpts {
-                    parent_inline: opts.parent_inline,
-                    type_map: opts.type_map,
-                },
-                generics,
-            )?,
-            String::inline(
-                DefOpts {
-                    parent_inline: opts.parent_inline,
-                    type_map: opts.type_map,
-                },
-                generics,
-            )?,
-        ))))
-    }
-
-    fn reference(opts: DefOpts, generics: &[DataType]) -> Result<DataType, ExportError> {
-        Ok(DataType::Record(Box::new((
-            String::reference(
-                DefOpts {
-                    parent_inline: opts.parent_inline,
-                    type_map: opts.type_map,
-                },
-                generics,
-            )?,
-            String::reference(
-                DefOpts {
-                    parent_inline: opts.parent_inline,
-                    type_map: opts.type_map,
-                },
-                generics,
-            )?,
-        ))))
-    }
-}
-
 #[tauri::command]
 #[specta::specta]
 async fn environment_download_repository(
@@ -1557,6 +1554,10 @@ async fn environment_add_repository(
         environment.add_remote_repo(url, None, headers.0).await?;
         environment.save().await?;
     });
+
+    // force update repository
+    let mut state = state.lock().await;
+    state.environment.last_repository_update = None;
 
     Ok(TauriAddRepositoryResult::Success)
 }
@@ -1880,8 +1881,9 @@ async fn environment_create_project(
 #[derive(Serialize, specta::Type)]
 struct TauriProjectDetails {
     unity: Option<(u16, u8)>,
-    unity_str: String,
+    unity_str: Option<String>,
     installed_packages: Vec<(String, TauriBasePackageInfo)>,
+    should_resolve: bool,
 }
 
 async fn load_project(project_path: String) -> Result<UnityProject, RustError> {
@@ -1900,14 +1902,12 @@ async fn project_details(project_path: String) -> Result<TauriProjectDetails, Ru
         unity: unity_project
             .unity_version()
             .map(|v| (v.major(), v.minor())),
-        unity_str: unity_project
-            .unity_version()
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| "unknown".into()),
+        unity_str: unity_project.unity_version().map(|v| v.to_string()),
         installed_packages: unity_project
             .installed_packages()
             .map(|(k, p)| (k.to_string(), TauriBasePackageInfo::new(p)))
             .collect(),
+        should_resolve: unity_project.should_resolve(),
     })
 }
 
@@ -2203,42 +2203,6 @@ async fn project_apply_pending_changes(
     Ok(())
 }
 
-#[derive(Serialize, specta::Type)]
-#[serde(tag = "type")]
-enum TauriBeforeMigrateProjectTo2022Result {
-    NoUnity2022Found,
-    ConfirmNotExactlyRecommendedUnity2022 { found: String, recommended: String },
-    ReadyToMigrate,
-}
-
-#[tauri::command]
-#[specta::specta]
-async fn project_before_migrate_project_to_2022(
-    state: State<'_, Mutex<EnvironmentState>>,
-    allow_mismatched_unity: bool,
-) -> Result<TauriBeforeMigrateProjectTo2022Result, RustError> {
-    with_environment!(state, |environment| {
-        let Some(found_unity) =
-            environment.find_most_suitable_unity(VRCHAT_RECOMMENDED_2022_UNITY)?
-        else {
-            return Ok(TauriBeforeMigrateProjectTo2022Result::NoUnity2022Found);
-        };
-
-        if !allow_mismatched_unity
-            && found_unity.version().unwrap() != VRCHAT_RECOMMENDED_2022_UNITY
-        {
-            return Ok(
-                TauriBeforeMigrateProjectTo2022Result::ConfirmNotExactlyRecommendedUnity2022 {
-                    found: found_unity.version().unwrap().to_string(),
-                    recommended: VRCHAT_RECOMMENDED_2022_UNITY.to_string(),
-                },
-            );
-        }
-
-        Ok(TauriBeforeMigrateProjectTo2022Result::ReadyToMigrate)
-    })
-}
-
 #[tauri::command]
 #[specta::specta]
 async fn project_migrate_project_to_2022(
@@ -2263,8 +2227,7 @@ async fn project_migrate_project_to_2022(
 #[derive(Serialize, specta::Type, Clone)]
 #[serde(tag = "type")]
 #[allow(dead_code)]
-enum TauriFinalizeMigrationWithUnity2022Result {
-    NoUnity2022Found,
+enum TauriCallUnityForMigrationResult {
     ExistsWithNonZero { status: String },
     FinishedSuccessfully,
 }
@@ -2272,28 +2235,17 @@ enum TauriFinalizeMigrationWithUnity2022Result {
 #[allow(dead_code)]
 #[tauri::command]
 #[specta::specta]
-async fn project_finalize_migration_with_unity_2022(
-    state: State<'_, Mutex<EnvironmentState>>,
+async fn project_call_unity_for_migration(
     window: Window,
     channel: String,
     project_path: String,
-) -> Result<AsyncCallResult<String, TauriFinalizeMigrationWithUnity2022Result>, RustError> {
+    unity_path: String,
+) -> Result<AsyncCallResult<String, TauriCallUnityForMigrationResult>, RustError> {
     async_command(channel, window, async {
-        let found_unity = with_environment!(state, |environment| {
-            let Some(found_unity) =
-                environment.find_most_suitable_unity(VRCHAT_RECOMMENDED_2022_UNITY)?
-            else {
-                return immediate(TauriFinalizeMigrationWithUnity2022Result::NoUnity2022Found);
-            };
-            environment.disconnect_litedb();
-
-            found_unity
-        });
-
         let unity_project = load_project(project_path).await?;
 
         With::<String>::continue_async(move |context| async move {
-            let mut child = Command::new(found_unity.path())
+            let mut child = Command::new(unity_path)
                 .args([
                     "-quit".as_ref(),
                     "-batchmode".as_ref(),
@@ -2317,13 +2269,11 @@ async fn project_finalize_migration_with_unity_2022(
             let status = child.wait().await?;
 
             return if status.success() {
-                Ok(TauriFinalizeMigrationWithUnity2022Result::FinishedSuccessfully)
+                Ok(TauriCallUnityForMigrationResult::FinishedSuccessfully)
             } else {
-                Ok(
-                    TauriFinalizeMigrationWithUnity2022Result::ExistsWithNonZero {
-                        status: status.to_string(),
-                    },
-                )
+                Ok(TauriCallUnityForMigrationResult::ExistsWithNonZero {
+                    status: status.to_string(),
+                })
             };
 
             async fn send_lines(
@@ -2340,6 +2290,7 @@ async fn project_finalize_migration_with_unity_2022(
                         }
                         Ok(None) => break,
                         Ok(Some(line)) => {
+                            log::debug!(target: "vrc_get_gui::unity", "{line}");
                             let line = line.trim().to_string();
                             if let Err(e) = context.emit(line) {
                                 error!("error sending stdout: {e}")
@@ -2382,50 +2333,17 @@ async fn project_migrate_project_to_vpm(
     Ok(())
 }
 
-#[derive(Serialize, specta::Type)]
-enum TauriOpenUnityResult {
-    NoUnityVersionForTheProject,
-    NoMatchingUnityFound,
-    Success,
-}
-
 #[tauri::command]
 #[specta::specta]
-async fn project_open_unity(
-    state: State<'_, Mutex<EnvironmentState>>,
-    project_path: String,
-) -> Result<TauriOpenUnityResult, RustError> {
-    with_environment!(&state, |environment| {
-        let unity_project = load_project(project_path).await?;
+async fn project_open_unity(project_path: String, unity_path: String) -> Result<(), RustError> {
+    crate::cmd_start::start_command(
+        "Unity".as_ref(),
+        unity_path.as_ref(),
+        &["-projectPath".as_ref(), OsStr::new(project_path.as_str())],
+    )
+    .await?;
 
-        let Some(project_unity) = unity_project.unity_version() else {
-            return Ok(TauriOpenUnityResult::NoUnityVersionForTheProject);
-        };
-
-        for x in environment.get_unity_installations()? {
-            if let Some(version) = x.version() {
-                if version == project_unity {
-                    update_project_last_modified(environment, unity_project.project_dir()).await;
-
-                    crate::cmd_start::start_command(
-                        "Unity".as_ref(),
-                        x.path().as_ref(),
-                        &[
-                            "-projectPath".as_ref(),
-                            unity_project.project_dir().as_os_str(),
-                        ],
-                    )
-                    .await?;
-
-                    return Ok(TauriOpenUnityResult::Success);
-                }
-            }
-        }
-
-        environment.disconnect_litedb();
-
-        Ok(TauriOpenUnityResult::NoMatchingUnityFound)
-    })
+    Ok(())
 }
 
 fn folder_stream(

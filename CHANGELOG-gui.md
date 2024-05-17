@@ -8,28 +8,66 @@ The format is based on [Keep a Changelog].
 
 ## [Unreleased]
 ### Added
-- `/opt/unityhub/unityhub` to the unity hub search path `#812`
-  - The path is the default path for official apt distribution
-- Issue Report button feature in Settings `#821`
-- German translation `#824`
-- SDK2 Project is now shown as type "SDK2" `#869`
+- `vcc://` support `#978`
+  - This is enabled by default for macOS and you have to enable manually on Settings page for windows and linux.
 
 ### Changed
+- Improved project Template selection `#967`
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
-- Impossible to control some portion if the window is narrow `#805`
-- Reorder Sidebar menu for clearer organization `#820`
-- Background is black if dark mode `#811`
-  - Plaease wait a while for the dark mode support
-- Added dedicated messages for bulk actions in manage packages page `#819`
-- Panics are ignored `#846`
-  - From this version, panics will be logged to error logs instead of stderr.
+- Impossible to install for machine (for Windows) `#976`
+- Japanese variant of CJK Ideograph is used for Simplified Chinese `#980`
+  - Since this version, ALCOM will always use `system-ui` font for all languages.
 
 ### Security
+
+## [0.1.3] - 2024-05-13
+### Added
+- Template for unity 2022.3.6f1 [`#956`](https://github.com/vrc-get/vrc-get/pull/956)
+
+### Changed
+- Support repositories with bad packages [`#954`](https://github.com/vrc-get/vrc-get/pull/954)
+- Use url in settings.json to load remote repository [`#955`](https://github.com/vrc-get/vrc-get/pull/955)
+
+### Fixed
+- Project page is not refreshed after unity patch migration [`#941`](https://github.com/vrc-get/vrc-get/pull/941)
+- VCC Crashes after opening settings page [`#942`](https://github.com/vrc-get/vrc-get/pull/942)
+- Resolve needed check ignores legacy packages [`#952`](https://github.com/vrc-get/vrc-get/pull/952)
+
+## [0.1.2] - 2024-05-10
+### Fixed
+- Unity version used in template is not updated [`#933`](https://github.com/vrc-get/vrc-get/pull/933)
+  - We upgraded Unity to 2022.3.22f1
+
+## [0.1.1] - 2024-05-10
+### Added
+- `/opt/unityhub/unityhub` to the unity hub search path [`#812`](https://github.com/vrc-get/vrc-get/pull/812)
+  - The path is the default path for official apt distribution
+- Issue Report button feature in Settings [`#821`](https://github.com/vrc-get/vrc-get/pull/821)
+- German translation [`#824`](https://github.com/vrc-get/vrc-get/pull/824)
+- SDK2 Project is now shown as type "SDK2" [`#869`](https://github.com/vrc-get/vrc-get/pull/869)
+- Select Unity Path if there are two or more Unity of the same version installed [`#863`](https://github.com/vrc-get/vrc-get/pull/863)
+  - Currently, ALCOM will ask every time you open Unity. We will implement saving the selection in the future.
+- Unity 2022 patch version migration [`#863`](https://github.com/vrc-get/vrc-get/pull/863)
+- Legacy Assets are remove even if the specified GUID does not match with the actual GUID [`#901`](https://github.com/vrc-get/vrc-get/pull/901)
+  - This follows VCC 2.3.0 beta 3 behavior.
+- Added a French language translation [`#904`](https://github.com/vrc-get/vrc-get/pull/904)
+- Updated the recommended Unity 2022 version to 2022.3.22f1 [`#928`](https://github.com/vrc-get/vrc-get/pull/928)
+- Resolve suggestion [`#930`](https://github.com/vrc-get/vrc-get/pull/930)
+
+### Fixed
+- Impossible to control some portion if the window is narrow [`#805`](https://github.com/vrc-get/vrc-get/pull/805)
+- Reorder Sidebar menu for clearer organization [`#820`](https://github.com/vrc-get/vrc-get/pull/820)
+- Background is black if dark mode [`#811`](https://github.com/vrc-get/vrc-get/pull/811)
+  - Plaease wait a while for the dark mode support
+- Added dedicated messages for bulk actions in manage packages page [`#819`](https://github.com/vrc-get/vrc-get/pull/819)
+- Panics are ignored [`#846`](https://github.com/vrc-get/vrc-get/pull/846)
+  - From this version, panics will be logged to error logs instead of stderr.
+- We cannot see packages from newly added repository just after adding repository [`#903`](https://github.com/vrc-get/vrc-get/pull/903)
 
 ## [0.1.0] - 2024-04-18
 ## [0.1.0-rc.0] - 2024-04-18
@@ -239,7 +277,10 @@ The format is based on [Keep a Changelog].
 - Apple code signing [`#422`](https://github.com/anatawa12/vrc-get/pull/422)
 - Migrate vpm 2019 project to 2022 [`#435`](https://github.com/anatawa12/vrc-get/pull/435)
 
-[Unreleased]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.0...HEAD
+[Unreleased]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.3...HEAD
+[0.1.3]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.2...gui-v0.1.3
+[0.1.2]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.1...gui-v0.1.2
+[0.1.1]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.0...gui-v0.1.1
 [0.1.0]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.0-rc.0...gui-v0.1.0
 [0.1.0-rc.0]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.0-beta.21...gui-v0.1.0-rc.0
 [0.1.0-beta.21]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.0-beta.20...gui-v0.1.0-beta.21

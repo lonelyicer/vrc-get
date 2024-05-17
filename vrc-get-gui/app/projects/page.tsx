@@ -42,6 +42,7 @@ import {
 	environmentProjects,
 	environmentSetFavoriteProject,
 	environmentSetProjectSorting,
+	environmentUnityVersions,
 	projectMigrateProjectToVpm,
 	TauriProject,
 	TauriProjectDirCheckResult,
@@ -52,7 +53,6 @@ import {
 import {useQuery} from "@tanstack/react-query";
 import {useRouter} from "next/navigation";
 import {SearchBox} from "@/components/SearchBox";
-import {openUnity} from "@/lib/open-unity";
 import {nop} from "@/lib/nop";
 import {useDebounce} from "@uidotdev/usehooks";
 import {VGOption, VGSelect} from "@/components/select";
@@ -64,6 +64,7 @@ import {pathSeparator} from "@/lib/os";
 import {useBackupProjectModal} from "@/lib/backup-project";
 import {ChevronUpIcon} from "@heroicons/react/24/outline";
 import {compareUnityVersionString} from "@/lib/version";
+import {useOpenUnity, OpenUnityFunction} from "@/lib/use-open-unity";
 
 const sortings = [
 	"lastModified",
@@ -84,10 +85,15 @@ export default function Page() {
 		queryKey: ["projects"],
 		queryFn: environmentProjects,
 	});
+	const unityVersionsResult = useQuery({
+		queryKey: ["unityVersions"],
+		queryFn: () => environmentUnityVersions(),
+	});
 
 	const [search, setSearch] = useState("");
 	const [loadingOther, setLoadingOther] = useState(false);
 	const [createProjectState, setCreateProjectState] = useState<'normal' | 'creating'>('normal');
+	const openUnity = useOpenUnity(unityVersionsResult?.data);
 
 	const startCreateProject = () => setCreateProjectState('creating');
 
@@ -110,6 +116,7 @@ export default function Page() {
 									projects={result.data}
 									search={search}
 									loading={loading}
+									openUnity={openUnity.openUnity}
 									refresh={() => result.refetch()}
 									onRemoved={() => result.refetch()}
 								/>
@@ -117,6 +124,7 @@ export default function Page() {
 				</Card>
 				{createProjectState === "creating" &&
 					<CreateProject close={() => setCreateProjectState("normal")} refetch={() => result.refetch()}/>}
+				{openUnity.dialog}
 			</main>
 		</VStack>
 	);
@@ -163,9 +171,10 @@ function compareProjectType(a: TauriProjectType, b: TauriProjectType): 0 | -1 | 
 
 function ProjectsTable(
 	{
-		projects, search, onRemoved, loading, refresh,
+		projects, search, onRemoved, loading, refresh, openUnity,
 	}: {
 		projects: TauriProject[],
+		openUnity: OpenUnityFunction,
 		search?: string,
 		loading?: boolean,
 		onRemoved?: () => void;
@@ -294,7 +303,8 @@ function ProjectsTable(
 			</thead>
 			<tbody>
 			{projectsShown.map((project) =>
-				<ProjectRow key={project.index} project={project} loading={loading} refresh={refresh} onRemoved={onRemoved}/>)}
+				<ProjectRow key={project.index} project={project} loading={loading} refresh={refresh} onRemoved={onRemoved}
+										openUnity={openUnity}/>)}
 			</tbody>
 		</table>
 	);
@@ -352,11 +362,13 @@ type ProjectRowState = {
 function ProjectRow(
 	{
 		project,
+		openUnity,
 		onRemoved,
 		loading,
 		refresh,
 	}: {
 		project: TauriProject;
+		openUnity: OpenUnityFunction;
 		onRemoved?: () => void;
 		loading?: boolean;
 		refresh?: () => void;
@@ -444,7 +456,8 @@ function ProjectRow(
 			break;
 		case "LegacyWorlds":
 		case "LegacyAvatars":
-			manageButton = <RowButton color={"light-green"} onClick={startMigrateVpm}>{tc("projects:button:migrate")}</RowButton>
+			manageButton =
+				<RowButton color={"light-green"} onClick={startMigrateVpm}>{tc("projects:button:migrate")}</RowButton>
 			break;
 		case "UpmWorlds":
 		case "UpmAvatars":
@@ -479,8 +492,10 @@ function ProjectRow(
 						</Typography>
 					</DialogBody>
 					<DialogFooter>
-						<Button onClick={() => setDialogStatus({type: "normal"})} className="mr-1">{tc("general:button:cancel")}</Button>
-						<Button onClick={() => doMigrateVpm(false)} color={"red"} className="mr-1">{tc("projects:button:migrate copy")}</Button>
+						<Button onClick={() => setDialogStatus({type: "normal"})}
+										className="mr-1">{tc("general:button:cancel")}</Button>
+						<Button onClick={() => doMigrateVpm(false)} color={"red"}
+										className="mr-1">{tc("projects:button:migrate copy")}</Button>
 						<Button onClick={() => doMigrateVpm(true)} color={"red"}>{tc("projects:button:migrate in-place")}</Button>
 					</DialogFooter>
 				</Dialog>
@@ -546,7 +561,8 @@ function ProjectRow(
 							{displayType}
 						</Typography>
 						{isLegacy &&
-							<Typography className="font-normal opacity-50 text-sm text-red-700">{tc("projects:type:legacy")}</Typography>}
+							<Typography
+								className="font-normal opacity-50 text-sm text-red-700">{tc("projects:type:legacy")}</Typography>}
 					</div>
 				</div>
 			</td>
@@ -566,9 +582,11 @@ function ProjectRow(
 			</td>
 			<td className={noGrowCellClass}>
 				<div className="flex flex-row gap-2 max-w-min">
-					<RowButton onClick={() => openUnity(project.path)}>{tc("projects:button:open unity")}</RowButton>
+					<RowButton
+						onClick={() => openUnity(project.path, project.unity)}>{tc("projects:button:open unity")}</RowButton>
 					{manageButton}
-					<RowButton onClick={() => backupProjectModal.startBackup(project)} color={"green"}>{tc("projects:backup")}</RowButton>
+					<RowButton onClick={() => backupProjectModal.startBackup(project)}
+										 color={"green"}>{tc("projects:backup")}</RowButton>
 					<Menu>
 						<MenuHandler>
 							<IconButton variant="text" color={"blue"}><EllipsisHorizontalIcon
@@ -672,11 +690,26 @@ function CreateProject(
 		refetch?: () => void,
 	}
 ) {
+	const router = useRouter();
+
 	const [state, setState] = useState<CreateProjectstate>('loadingInitialInformation');
 	const [projectNameCheckState, setProjectNameCheckState] = useState<'checking' | TauriProjectDirCheckResult>('Ok');
 
-	const [templates, setTemplates] = useState<TauriProjectTemplate[]>([]);
-	const [chosenTemplate, setChosenTemplate] = useState<TauriProjectTemplate>();
+	type CustomTemplate = TauriProjectTemplate & { type: 'Custom' };
+
+	const templateUnityVersions = [
+		'2022.3.22f1',
+		'2022.3.6f1',
+		'2019.4.31f1',
+	] as const;
+	const latestUnityVersion = templateUnityVersions[0];
+
+	const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>([]);
+
+	const [templateType, setTemplateType] = useState<'avatars' | 'worlds' | 'custom'>('avatars');
+	const [unityVersion, setUnityVersion] = useState<(typeof templateUnityVersions)[number]>(latestUnityVersion);
+	const [customTemplate, setCustomTemplate] = useState<CustomTemplate>();
+
 	const [projectNameRaw, setProjectName] = useState("New Project");
 	const projectName = projectNameRaw.trim();
 	const [projectLocation, setProjectLocation] = useState("");
@@ -687,8 +720,9 @@ function CreateProject(
 	useEffect(() => {
 		(async () => {
 			const information = await environmentProjectCreationInformation();
-			setTemplates(information.templates);
-			setChosenTemplate(information.templates[0]);
+			const customTemplates = information.templates.filter((template): template is CustomTemplate => template.type === "Custom");
+			setCustomTemplates(customTemplates);
+			setCustomTemplate(customTemplates[0]);
 			setProjectLocation(information.default_path);
 			setState('enteringInformation');
 		})();
@@ -737,10 +771,32 @@ function CreateProject(
 	const createProject = async () => {
 		try {
 			setState('creating');
-			await environmentCreateProject(projectLocation, projectName, chosenTemplate!);
+			let template: TauriProjectTemplate;
+			switch (templateType) {
+				case "avatars":
+				case "worlds":
+					template = {
+						type: "Builtin",
+						id: `${templateType}-${unityVersion}`,
+						name: `${templateType}-${unityVersion}`,
+					}
+					break;
+				case "custom":
+					if (customTemplate === undefined)
+						throw new Error("Custom template not selected");
+					template = customTemplate;
+					break;
+				default:
+					const _exhaustiveCheck: never = templateType;
+					template = _exhaustiveCheck;
+					break;
+			}
+			await environmentCreateProject(projectLocation, projectName, template);
 			toastSuccess(tt("projects:toast:project created"));
 			close?.();
 			refetch?.();
+			const projectPath = `${projectLocation}${pathSeparator()}${projectName}`;
+			router.push(`/projects/manage?${new URLSearchParams({projectPath})}`);
 		} catch (e) {
 			console.error(e);
 			toastThrownError(e);
@@ -804,22 +860,54 @@ function CreateProject(
 			dialogBody = <Spinner/>;
 			break;
 		case "enteringInformation":
+			const renderUnityVersion = (unityVersion: string) => {
+				if (unityVersion === latestUnityVersion) {
+					return <>{unityVersion} <span className={"text-green-700"}>{tc("projects:latest")}</span></>
+				} else {
+					return unityVersion;
+				}
+			}
 			dialogBody = <>
 				<VStack>
 					<div className={"flex gap-1"}>
 						<div className={"flex items-center"}>
-							<Typography as={"label"}>{tc("projects:template")}</Typography>
+							<Typography as={"label"}>{tc("projects:template:type")}</Typography>
 						</div>
-						<VGSelect menuClassName={"z-[19999]"} value={chosenTemplate?.name}
-											onChange={value => setChosenTemplate(value)}>
-							{templates.map(template =>
-								<VGOption value={template} key={`${template.type}:${template.name}`}>{template.name}</VGOption>)}
+						<VGSelect menuClassName={"z-[19999]"} value={tc(`projects:type:${templateType}`)}
+											onChange={value => setTemplateType(value)}>
+							<VGOption value={"avatars"}>{tc("projects:type:avatars")}</VGOption>
+							<VGOption value={"worlds"}>{tc("projects:type:worlds")}</VGOption>
+							<VGOption value={"custom"} disabled={customTemplates.length == 0}>{tc("projects:type:custom")}</VGOption>
 						</VGSelect>
 					</div>
+					{templateType !== "custom" ? (
+						<div className={"flex gap-1"}>
+							<div className={"flex items-center"}>
+								<Typography as={"label"}>{tc("projects:template:unity version")}</Typography>
+							</div>
+							<VGSelect menuClassName={"z-[19999]"} value={renderUnityVersion(unityVersion)}
+												onChange={value => setUnityVersion(value)}>
+								{templateUnityVersions.map(unityVersion =>
+									<VGOption value={unityVersion} key={unityVersion}>{renderUnityVersion(unityVersion)}</VGOption>)}
+							</VGSelect>
+						</div>
+					) : (
+						<div className={"flex gap-1"}>
+							<div className={"flex items-center"}>
+								<Typography as={"label"}>{tc("projects:template")}</Typography>
+							</div>
+							<VGSelect menuClassName={"z-[19999]"} value={customTemplate?.name}
+												onChange={value => setCustomTemplate(value)}>
+								{customTemplates.map(template =>
+									<VGOption value={template} key={template.name}>{template.name}</VGOption>)}
+							</VGSelect>
+						</div>
+					)}
 					<Input label={"Project Name"} value={projectNameRaw} onChange={(e) => setProjectName(e.target.value)}/>
 					<div className={"flex gap-1"}>
 						<Input className="flex-auto" label={"Project Location"} value={projectLocation} disabled/>
-						<Button className="flex-none px-4" onClick={selectProjectDefaultFolder}>{tc("general:button:select")}</Button>
+						<Button className="flex-none px-4"
+										onClick={selectProjectDefaultFolder}>{tc("general:button:select")}</Button>
 					</div>
 					<Typography variant={"small"} className={"whitespace-normal"}>
 						{tc("projects:hint:path of creating project", {path: `${projectLocation}${pathSeparator()}${projectName}`}, {
