@@ -534,8 +534,9 @@ struct TauriProject {
     path: String,
     project_type: TauriProjectType,
     unity: String,
-    last_modified: u64,
-    created_at: u64,
+    unity_revision: Option<String>,
+    last_modified: i64,
+    created_at: i64,
     favorite: bool,
     is_exists: bool,
 }
@@ -587,8 +588,9 @@ impl TauriProject {
                 .unity_version()
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "unknown".into()),
-            last_modified: project.last_modified().as_millis_since_epoch(),
-            created_at: project.crated_at().as_millis_since_epoch(),
+            unity_revision: project.unity_revision().map(|x| x.to_string()),
+            last_modified: project.last_modified().timestamp_millis(),
+            created_at: project.crated_at().timestamp_millis(),
             favorite: project.favorite(),
             is_exists,
         }
@@ -1882,6 +1884,7 @@ async fn environment_create_project(
 struct TauriProjectDetails {
     unity: Option<(u16, u8)>,
     unity_str: Option<String>,
+    unity_revision: Option<String>,
     installed_packages: Vec<(String, TauriBasePackageInfo)>,
     should_resolve: bool,
 }
@@ -1903,6 +1906,7 @@ async fn project_details(project_path: String) -> Result<TauriProjectDetails, Ru
             .unity_version()
             .map(|v| (v.major(), v.minor())),
         unity_str: unity_project.unity_version().map(|v| v.to_string()),
+        unity_revision: unity_project.unity_revision().map(|x| x.to_string()),
         installed_packages: unity_project
             .installed_packages()
             .map(|(k, p)| (k.to_string(), TauriBasePackageInfo::new(p)))
@@ -2335,7 +2339,15 @@ async fn project_migrate_project_to_vpm(
 
 #[tauri::command]
 #[specta::specta]
-async fn project_open_unity(project_path: String, unity_path: String) -> Result<(), RustError> {
+async fn project_open_unity(
+    state: State<'_, Mutex<EnvironmentState>>,
+    project_path: String,
+    unity_path: String,
+) -> Result<(), RustError> {
+    with_environment!(&state, |environment| {
+        update_project_last_modified(environment, project_path.as_ref()).await;
+    });
+
     crate::cmd_start::start_command(
         "Unity".as_ref(),
         unity_path.as_ref(),

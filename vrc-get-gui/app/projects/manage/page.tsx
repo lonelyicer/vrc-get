@@ -476,6 +476,7 @@ function PageBody() {
 				projectName={projectName}
 				projectPath={projectPath}
 				unityVersion={detailsResult.data?.unity_str ?? null}
+				unityRevision={detailsResult.data?.unity_revision ?? null}
 				unityVersions={unityVersionsResult?.data}
 				onRemove={onRemoveProject}
 				onBackup={onBackupProject}
@@ -485,7 +486,7 @@ function PageBody() {
 					{tc("projects:manage:project location",
 						{path: projectPath},
 						{
-							components: {code: <code className={"bg-gray-200 p-0.5 whitespace-pre"}/>}
+							components: {path: <span className={"p-0.5 font-path whitespace-pre bg-gray-100"}/>}
 						})}
 				</Typography>
 				<div className={"flex-grow-0 flex-shrink-0 w-2"}></div>
@@ -1214,6 +1215,17 @@ function combinePackagesAndProjectDetails(
 	return asArray;
 }
 
+function LocalizationPackageSource({sourceName}: {sourceName: string}){
+	switch (sourceName) {
+		case "Official":
+			return tc("vpm repositories:source:official");
+		case "Curated":
+			return tc("vpm repositories:source:curated");
+		default:
+			return sourceName;
+	}
+}
+
 const PackageRow = memo(function PackageRow(
 	{
 		pkg,
@@ -1303,7 +1315,7 @@ const PackageRow = memo(function PackageRow(
 					) : pkg.sources.size == 1 ? (
 						<Tooltip content={[...pkg.sources][0]}>
 							<Typography className="overflow-hidden overflow-ellipsis">
-								{[...pkg.sources][0]}
+								<LocalizationPackageSource sourceName={[...pkg.sources][0]} />
 							</Typography>
 						</Tooltip>
 					) : (
@@ -1451,11 +1463,21 @@ function PackageLatestInfo(
 	}
 }
 
-function ProjectViewHeader({className, projectName, projectPath, unityVersion, unityVersions, onRemove, onBackup}: {
+function ProjectViewHeader({
+														 className,
+														 projectName,
+														 projectPath,
+														 unityVersion,
+														 unityRevision,
+														 unityVersions,
+														 onRemove,
+														 onBackup
+													 }: {
 	className?: string,
 	projectName: string,
 	projectPath: string
 	unityVersion: string | null,
+	unityRevision: string | null,
 	unityVersions: TauriUnityVersions | undefined,
 	onRemove?: () => void,
 	onBackup?: () => void,
@@ -1480,7 +1502,7 @@ function ProjectViewHeader({className, projectName, projectPath, unityVersion, u
 
 			<Menu>
 				<ButtonGroup>
-					<Button onClick={() => openUnity.openUnity(projectPath, unityVersion)}
+					<Button onClick={() => openUnity.openUnity(projectPath, unityVersion, unityRevision)}
 									className={"pl-4 pr-3"}>{tc("projects:button:open unity")}</Button>
 					<MenuHandler className={"pl-2 pr-2"}>
 						<Button>

@@ -10,9 +10,13 @@ The format is based on [Keep a Changelog].
 ### Added
 - `vcc://` support `#978`
   - This is enabled by default for macOS and you have to enable manually on Settings page for windows and linux.
+- per-package `headers` field support `#718`
 
 ### Changed
 - Improved project Template selection `#967`
+- Ask installing unity for a project if not installed `#988`
+- Removed Visual Scripting from dependencies of template projects `#991`
+- Support more legacy browsers `#994`
 
 ### Deprecated
 
@@ -22,6 +26,7 @@ The format is based on [Keep a Changelog].
 - Impossible to install for machine (for Windows) `#976`
 - Japanese variant of CJK Ideograph is used for Simplified Chinese `#980`
   - Since this version, ALCOM will always use `system-ui` font for all languages.
+- Last modified is not updated on opening unity again `#995`
 
 ### Security
 
