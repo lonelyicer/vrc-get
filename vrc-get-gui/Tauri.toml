@@ -43,6 +43,16 @@ ext = ['alcomtemplate']
 mimeType = "application/x-alcom-template+json"
 name = "ALCOM Project Template"
 
+[bundle.linux.appimage]
+args = [
+  "--exclude-library", "libgtk-3.so*",
+  "--exclude-library", "libgdk-3.so*",
+  "--exclude-library", "libglib-2.0.so*",
+  "--exclude-library", "libX11.so*",
+  "--exclude-library", "libXext.so*",
+  "--exclude-library", "libxcb.so*"
+]
+
 [bundle.linux.deb]
 desktopTemplate = "alcom.desktop"
 
