@@ -88,10 +88,10 @@ function RouteComponent() {
 				trailing={
 					<DropdownMenu>
 						<div className={"flex divide-x"}>
-							<CreateTemplateButton className={"rounded-r-none compact:h-10"} />
+							<CreateTemplateButton className={"rounded-r-none compact:h-9"} />
 							<DropdownMenuTrigger
 								asChild
-								className={"rounded-l-none pl-2 pr-2 compact:h-10"}
+								className={"rounded-l-none pl-2 pr-2 compact:h-9"}
 							>
 								<Button>
 									<ChevronDown className={"w-4 h-4"} />

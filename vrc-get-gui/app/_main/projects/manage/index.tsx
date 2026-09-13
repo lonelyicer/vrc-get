@@ -305,7 +305,7 @@ function UnityVersionSelector({
 			value={detailsResult.data?.unity_str ?? undefined}
 			onValueChange={requestChangeUnityVersion}
 		>
-			<SelectTrigger className={"compact:h-10"}>
+			<SelectTrigger className={"compact:h-9"}>
 				{detailsResult.status === "success" ? (
 					(detailsResult.data.unity_str ?? "unknown")
 				) : (
@@ -518,7 +518,7 @@ function ProjectViewHeader({
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
-								className={"compact:h-10"}
+								className={"compact:h-9"}
 								variant={"ghost"}
 								size={"sm"}
 								onClick={() => history.back()}
@@ -741,11 +741,11 @@ function ProjectButton({
 					projectPath={projectPath}
 					unityVersion={unityVersion}
 					unityRevision={unityRevision}
-					className={"rounded-r-none pl-4 pr-3 compact:h-10"}
+					className={"rounded-r-none pl-4 pr-3 compact:h-9"}
 				/>
 				<DropdownMenuTrigger
 					asChild
-					className={"rounded-l-none pl-2 pr-2 compact:h-10"}
+					className={"rounded-l-none pl-2 pr-2 compact:h-9"}
 				>
 					<Button>
 						<ChevronDown className={"w-4 h-4"} />

@@ -195,7 +195,7 @@ function ProjectViewHeader({
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
-								className={"compact:h-10 compact:w-10"}
+								className={"compact:h-9 compact:w-9"}
 								variant={"ghost"}
 								size={"icon"}
 								onClick={() =>
@@ -214,14 +214,14 @@ function ProjectViewHeader({
 					</Tooltip>
 
 					<SearchBox
-						className={"w-max grow compact:h-10"}
+						className={"w-max grow compact:h-9"}
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
 						ref={searchRef}
 					/>
 
 					<Button
-						className={"compact:h-10"}
+						className={"compact:h-9"}
 						variant={"ghost"}
 						onClick={() => {
 							if (viewMode === "List") {
@@ -254,14 +254,14 @@ function ProjectViewHeader({
 				<DropdownMenu>
 					<div className={"flex divide-x"}>
 						<Button
-							className={"rounded-r-none pl-4 pr-3 compact:h-10"}
+							className={"rounded-r-none pl-4 pr-3 compact:h-9"}
 							onClick={startCreateProject}
 						>
 							{tc("projects:create new project")}
 						</Button>
 						<DropdownMenuTrigger
 							asChild
-							className={"rounded-l-none pl-2 pr-2 compact:h-10"}
+							className={"rounded-l-none pl-2 pr-2 compact:h-9"}
 						>
 							<Button>
 								<ChevronDown className={"w-4 h-4"} />
