@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog].
 - Project launch buttons now show when Unity is opening or running and can bring open Unity Editor windows to the foreground on Windows and macOS. [`#3109`](https://github.com/vrc-get/vrc-get/pull/3109)
 
 ### Changed
+- Updated GUI components to shadcn/ui New York style [`#3143`](https://github.com/vrc-get/vrc-get/pull/3143)
 
 ### Deprecated
 
@@ -22,6 +23,8 @@ The format is based on [Keep a Changelog].
 - Alternating row backgrounds in Manage Packages are broken when filtering with search `#3058`
 - Improved compatibility with better compatibility with tools resizes window on launch `#3157`
 - Adjust button layout in Project Row `#3158`
+- The bulk action bar in Manage Packages now animates smoothly when selecting or deselecting packages `#3166`
+- `vcc:` Deep Linking not working on macOS `#3211`
 
 ### Security
 
