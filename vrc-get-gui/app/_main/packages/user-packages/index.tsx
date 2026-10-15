@@ -90,7 +90,7 @@ function PageBody() {
 				leading={<HeadingPageName pageType={"/packages/user-packages"} />}
 				trailing={
 					<Button
-						className={"compact:h-10"}
+						className={"compact:h-9"}
 						onClick={() => addUserPackageWithPicker.mutate()}
 					>
 						{tc("user packages:button:add package")}

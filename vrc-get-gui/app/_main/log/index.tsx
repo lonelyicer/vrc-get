@@ -169,7 +169,7 @@ function ManageLogsHeading({
 				<>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<Button className={"shrink-0 p-3 compact:h-10"}>
+							<Button className={"shrink-0 p-3 compact:h-9"}>
 								{tc("logs:manage:select logs level")}
 							</Button>
 						</DropdownMenuTrigger>
@@ -207,7 +207,7 @@ function ManageLogsHeading({
 					</DropdownMenu>
 
 					<Button
-						className={"compact:h-10"}
+						className={"compact:h-9"}
 						onClick={() =>
 							commands.utilOpen(
 								`${globalInfo.vpmHomeFolder}/vrc-get/gui-logs`,
@@ -223,7 +223,7 @@ function ManageLogsHeading({
 							<Button
 								variant={"ghost"}
 								onClick={() => handleLogAutoScrollChange(!autoScroll)}
-								className={`compact:h-10 ${
+								className={`compact:h-9 ${
 									autoScroll
 										? "bg-secondary border border-primary"
 										: "bg-transparent"

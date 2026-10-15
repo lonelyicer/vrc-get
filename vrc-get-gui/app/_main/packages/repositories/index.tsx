@@ -426,14 +426,14 @@ function PageBody() {
 							<DropdownMenu>
 								<div className={"flex divide-x"}>
 									<Button
-										className={"rounded-r-none compact:h-10"}
+										className={"rounded-r-none compact:h-9"}
 										onClick={() => openAddRepositoryDialog()}
 									>
 										{tc("vpm repositories:button:add repository")}
 									</Button>
 									<DropdownMenuTrigger
 										asChild
-										className={"rounded-l-none pl-2 pr-2 compact:h-10"}
+										className={"rounded-l-none pl-2 pr-2 compact:h-9"}
 									>
 										<Button>
 											<ChevronDown className={"w-4 h-4"} />
