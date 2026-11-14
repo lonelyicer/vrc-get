@@ -10,14 +10,14 @@
 use serde::Serialize;
 use std::borrow::Cow;
 use tauri::http::{Request, Response};
-use tauri::{AppHandle, Manager, UriSchemeContext, Wry};
+use tauri::{AppHandle, DynRuntime, Manager, UriSchemeContext};
 use vrc_get_vpm::io::DefaultEnvironmentIo;
 
 use crate::commands::DEFAULT_UNITY_ARGUMENTS;
 use crate::state::GuiConfigState;
 
 pub fn handle_vrc_get_scheme(
-    app: UriSchemeContext<'_, Wry>,
+    app: UriSchemeContext<'_, DynRuntime>,
     request: Request<Vec<u8>>,
 ) -> Response<Cow<'static, [u8]>> {
     let url = request.uri();
@@ -77,8 +77,10 @@ pub fn global_info_json(app: &AppHandle) -> Response<Cow<'static, [u8]>> {
 
     let os_info = crate::os::os_info();
 
-    let webview_version = tauri::webview_version();
-    let webview_version = webview_version.as_deref().unwrap_or("unknown");
+    let webview_version = app
+        .webview_version()
+        .unwrap_or_else(|_| "unknown".to_string());
+    let webview_version = webview_version.as_str();
 
     // we do not support updater with rpm or deb
     let check_for_updates = cfg_select! {

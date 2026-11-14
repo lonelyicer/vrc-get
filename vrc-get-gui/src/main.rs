@@ -54,6 +54,7 @@ fn main() {
     commands::export_ts();
 
     let app = tauri::Builder::default()
+        .runtime(tauri_runtime_wry::Wry::default())
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             log::info!("single instance remote procedure, {argv:?}, {cwd}");
             if let Some(window) = app.get_webview_window("main") {
